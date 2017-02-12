@@ -8,9 +8,10 @@
 #include <strings.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <pthread.h>
+//#include <pthread.h>
 #include <sys/wait.h>
 #include <stdlib.h>
+#include <signal.h>
 
 #define MAXMSG 1024
 #define BUFMSG 2048
@@ -21,8 +22,12 @@
 
 void error_prefix(const char *);
 int make_socket(u_short *);
-void accept_request(int);
+int accept_request(int);
 void not_found(int);
+
+//global variable
+int server_socket;
+fd_set active_fd_set;
 
 void error_prefix(const char *err_msg)
 {
@@ -45,13 +50,13 @@ int make_socket(u_short *port)
     if (bind(httpd, (struct sockaddr *)&name, sizeof(name)) < 0)
         error_prefix("bind");
 
-    if (listen(httpd, 5) < 0)
+    if (listen(httpd, 1) < 0)
         error_prefix("listen");
 
     return(httpd);
 }
 
-void accept_request(int client)
+int accept_request(int client)
 {
     char *buffer;
     int nbytes = 0;
@@ -62,6 +67,11 @@ void accept_request(int client)
     char *tmp;
 
     char* response_buf;
+
+    char decode[5];
+
+    decode[0] = '0';
+    decode[1] = 'x';
 
     buffer = malloc(sizeof(char) * MAXMSG);
     command = malloc(sizeof(char) * BUFMSG);
@@ -77,7 +87,7 @@ void accept_request(int client)
     }
     else if (nbytes == 0)
         /* End-of-file. */
-        return;
+        return -1;
     else
     {
         /* Data read. */
@@ -123,26 +133,38 @@ void accept_request(int client)
             i = 0;
             int j  = 0;
             char xx = command[3];
+
+            int result = 0;
   //          fprintf(stderr, "%s\n", &xx);
 
             for (i = 0; command[i] != '\0'; i++)
             {
                 if (command[i] == '%')
                 {
-                    if (command[i+1] == '2')
-                    {
-                        if (command[i+2] == '0')
-                        {
+                    decode[2] = command[i+1];
+                    decode[3] = command[i+2];
+                    decode[4] = '\0';
+
+                    result = (int)strtol(decode, NULL, 0);
+                    command[i] = result;
+
+//                    command[i] = atoi(decode);
+//                    error_prefix("%s", decode);
+//                    exit(1);
+ //                   if (command[i+1] == '2')
+ //                   {
+ //                       if (command[i+2] == '0')
+ //                       {
    //                         fprintf(stderr, "%d\n", i);
-                            command[i] = ' ';
+  //                          command[i] = ' ';
                             for (j = i+1; j < strlen(command); j++)
                             {
                                 command[j] = command[j+2];
                             }
 //                            command[strlen(command)]='\0';
  //                           fprintf(stderr, "command = %s\n", command);
-                        }
-                    }
+                        //}
+//                    }
                 }
             }
 
@@ -219,15 +241,16 @@ strcat(response_buf, "\r\n");
 //            system(command);
 
 //error_prefix("...");
+//exit(1);
             
         }
         else
         {
             not_found(client);
         }
-        return;
+        return 0;
     }
-    return;
+    return 0;
 }
 
 void not_found(int client)
@@ -238,6 +261,8 @@ void not_found(int client)
  send(client, response_buf, strlen(response_buf), 0);
  strcpy(response_buf, SERVER_INFO);
  send(client, response_buf, strlen(response_buf), 0);
+ sprintf(response_buf, "Content-Length: 0\r\n");
+ send(client, response_buf, strlen(response_buf), 0);
  sprintf(response_buf, "Content-Type: text/html\r\n");
  send(client, response_buf, strlen(response_buf), 0);
  sprintf(response_buf, "Connection: close\r\n");
@@ -246,19 +271,38 @@ void not_found(int client)
   strcpy(response_buf, "\r\n");  
   send(client, response_buf, strlen(response_buf), 0);
 
+//  sprintf(response_buf, "%x", 0);
+//strcat(response_buf, "\r\n");  
+//  send(client, response_buf, strlen(response_buf), 0);
+//  strcpy(response_buf, "\r\n");  
+//  send(client, response_buf, strlen(response_buf), 0);
 
-//exit(1);
 }
+
+
+// Define the function to be called when ctrl-c (SIGINT) signal is sent to process
+void signal_callback_handler(int signum)
+{
+   printf("Caught signal %d\n",signum);
+   // Cleanup and close up stuff here
+   close(server_socket);
+   FD_CLR (server_socket, &active_fd_set); 
+   // Terminate program
+   exit(signum);
+}
+
 
 
 int main(int argc, char *argv[])
 {
-    int server_socket = -1;
+//    int server_socket = -1;
+	server_socket = -1;
     u_short port = -1;
     int client_socket = -1;
     struct sockaddr_in client_name;
-    int client_name_length = sizeof(client_name);
-    pthread_t newthread;
+    socklen_t client_name_length = sizeof(client_name);
+//    fd_set active_fd_set;
+//    pthread_t newthread;
 
     if (argc != 2)
     {
@@ -274,6 +318,10 @@ int main(int argc, char *argv[])
     server_socket = make_socket(&port);
     printf("httpd running on port %d\n", port);
 
+      /* Initialize the set of active sockets. */
+    FD_ZERO (&active_fd_set);
+    FD_SET (server_socket, &active_fd_set);
+
     while (1)
     {
         client_socket = accept(server_socket,
@@ -282,13 +330,28 @@ int main(int argc, char *argv[])
 
         if (client_socket == -1)
             error_prefix("accept");
+        
+        FD_SET (client_socket, &active_fd_set);
+
+
+   // Register signal and signal handler
+   signal(SIGINT, signal_callback_handler);
 
         /* accept_request(client_socket); */
-        if (pthread_create(&newthread , NULL, accept_request, client_socket) != 0)
-            perror("pthread_create");
+//        if (pthread_create(&newthread , NULL, accept_request, client_socket) != 0)
+//            perror("pthread_create");
+//        accept_request(client_socket);
+
+        if (accept_request(client_socket) < 0)   
+        {
+            close(server_socket);
+            FD_CLR (server_socket, &active_fd_set);
+            exit(1);
+        }
     }
+    close(server_socket);
+    FD_CLR (server_socket, &active_fd_set);
+    exit(1);
 
- close(server_socket);
-
- return(0);
+ return 0;
 }
