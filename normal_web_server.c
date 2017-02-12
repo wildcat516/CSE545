@@ -17,7 +17,7 @@
 
 #define SERVER_INFO "Server: jodevilhttpd/0.1.0 (macOS 10.12.3)\r\n"
 
-#define MULTIPLE 1.5
+//#define MULTIPLE 1.5
 
 void error_prefix(const char *);
 int make_socket(u_short *);
@@ -86,7 +86,7 @@ void accept_request(int client)
 //        printf("buffer[0] = %s", buffer);
 //        printf("%d", sizeof(buffer));
         perror("wtf!!");
-        if (strncmp("GET", buffer, 3) == 0)
+        if (strncmp("GET /exec/", buffer, 10) == 0)
         {
 /*            perror("lalala");
             strcpy(buf, "HTTP/1.1 200 OK\r\n");
@@ -112,18 +112,18 @@ void accept_request(int client)
 
             strncpy(command, head, i);
 
-            fprintf(stderr, "%s\n", command);
-            fprintf(stderr, "%d\n", strlen(command));
+  //          fprintf(stderr, "%s\n", command);
+  //          fprintf(stderr, "%d\n", strlen(command));
             
             command[strlen(command)] = '\0';
 
-            fprintf(stderr, "%s\n", command);
-            fprintf(stderr, "%d\n", strlen(command));            
+  //          fprintf(stderr, "%s\n", command);
+  //          fprintf(stderr, "%d\n", strlen(command));            
 
             i = 0;
             int j  = 0;
             char xx = command[3];
-            fprintf(stderr, "%s\n", &xx);
+  //          fprintf(stderr, "%s\n", &xx);
 
             for (i = 0; command[i] != '\0'; i++)
             {
@@ -133,14 +133,14 @@ void accept_request(int client)
                     {
                         if (command[i+2] == '0')
                         {
-                            fprintf(stderr, "%d\n", i);
+   //                         fprintf(stderr, "%d\n", i);
                             command[i] = ' ';
                             for (j = i+1; j < strlen(command); j++)
                             {
                                 command[j] = command[j+2];
                             }
 //                            command[strlen(command)]='\0';
-                            fprintf(stderr, "command = %s\n", command);
+ //                           fprintf(stderr, "command = %s\n", command);
                         }
                     }
                 }
@@ -169,8 +169,7 @@ void accept_request(int client)
     FILE *f = popen(command, "r");
     while (fgets(cmd_output, 5, f) != NULL) {
 //        printf("%s", cmd_output);
-        fprintf(stderr, "output = %s\n", cmd_output);
-        //cmd_output[max_opt_len] = '\0';
+//        fprintf(stderr, "output = %s\n", cmd_output);
 
 //sprintf(response_buf, "%x", 4);
 sprintf(response_buf, "%x", strlen(cmd_output));
@@ -219,7 +218,7 @@ strcat(response_buf, "\r\n");
 
 //            system(command);
 
-            error_prefix("...");
+//error_prefix("...");
             
         }
         else
@@ -241,8 +240,14 @@ void not_found(int client)
  send(client, response_buf, strlen(response_buf), 0);
  sprintf(response_buf, "Content-Type: text/html\r\n");
  send(client, response_buf, strlen(response_buf), 0);
- sprintf(response_buf, "Connection: keep-alive\r\n");
+ sprintf(response_buf, "Connection: close\r\n");
  send(client, response_buf, strlen(response_buf), 0); 
+
+  strcpy(response_buf, "\r\n");  
+  send(client, response_buf, strlen(response_buf), 0);
+
+
+//exit(1);
 }
 
 
