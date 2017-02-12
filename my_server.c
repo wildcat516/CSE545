@@ -17,9 +17,12 @@
 
 #define SERVER_INFO "Server: jodevilhttpd/0.1.0 (macOS 10.12.3)\r\n"
 
+#define MULTIPLE 1.5
+
 void error_prefix(const char *);
 int make_socket(u_short *);
 void accept_request(int);
+void not_found(int);
 
 void error_prefix(const char *err_msg)
 {
@@ -147,28 +150,100 @@ void accept_request(int client)
  send(client, response_buf, strlen(response_buf), 0);
  strcpy(response_buf, SERVER_INFO);
  send(client, response_buf, strlen(response_buf), 0);
+ sprintf(response_buf, "Transfer-encoding: chunked\r\n");
+ send(client, response_buf, strlen(response_buf), 0);
  sprintf(response_buf, "Content-Type: text/html\r\n");
  send(client, response_buf, strlen(response_buf), 0);
- sprintf(response_buf, system(command), 0);
+ sprintf(response_buf, "Connection: keep-alive\r\n");
+ send(client, response_buf, strlen(response_buf), 0); 
+
+ strcpy(response_buf, "\r\n");
+ send(client, response_buf, strlen(response_buf), 0);
+ 
+    char* cmd_output;
+    char* temp;
+    int max_opt_len = 5;
+
+    cmd_output = malloc(sizeof(char) * 5);
+
+    FILE *f = popen(command, "r");
+    while (fgets(cmd_output, 5, f) != NULL) {
+//        printf("%s", cmd_output);
+        fprintf(stderr, "output = %s\n", cmd_output);
+        //cmd_output[max_opt_len] = '\0';
+
+//sprintf(response_buf, "%x", 4);
+sprintf(response_buf, "%x", strlen(cmd_output));
+strcat(response_buf, "\r\n");
+  send(client, response_buf, strlen(response_buf), 0);
+//  strcpy(response_buf, "\r\n");
+//  send(client, response_buf, strlen(response_buf), 0);  
+  sprintf(response_buf, "%s", cmd_output);
+//  response_buf[strlen(response_buf)] = '\r';
+strcat(response_buf, "\r\n");
+
+  send(client, response_buf, strlen(response_buf), 0);
+ // strcpy(response_buf, "\r\n");
+ // send(client, response_buf, strlen(response_buf), 0);
+
+
+    }
+
+    pclose(f);
+
+sprintf(response_buf, "%x", 0);
+strcat(response_buf, "\r\n");  
+  send(client, response_buf, strlen(response_buf), 0);
+  strcpy(response_buf, "\r\n");  
+  send(client, response_buf, strlen(response_buf), 0);
+
+ //   strcpy(response_buf, "\r\n");
+ //   send(client, response_buf, strlen(response_buf), 0);
+/*
+ strcpy(response_buf, "HTTP/1.1 200 OK\r\n");
+ send(client, response_buf, strlen(response_buf), 0);
+ strcpy(response_buf, SERVER_INFO);
+ send(client, response_buf, strlen(response_buf), 0);
+ sprintf(response_buf, "CTransfer-encoding: chunked\r\n", 0);
+ send(client, response_buf, strlen(response_buf), 0);
+ sprintf(response_buf, "Content-Type: text/html\r\n");
  send(client, response_buf, strlen(response_buf), 0);
 
  strcpy(response_buf, "\r\n");
  send(client, response_buf, strlen(response_buf), 0);
+*/
+//    send(client, NULL, 0, 0);
 
-            system(command);
+
+
+
+//            system(command);
 
             error_prefix("...");
             
         }
         else
         {
-
+            not_found(client);
         }
         return;
     }
     return;
 }
 
+void not_found(int client)
+{
+    char *response_buf = malloc(sizeof(char) * BUFMSG);
+
+ strcpy(response_buf, "HTTP/1.1 404 NOT FOUND\r\n");
+ send(client, response_buf, strlen(response_buf), 0);
+ strcpy(response_buf, SERVER_INFO);
+ send(client, response_buf, strlen(response_buf), 0);
+ sprintf(response_buf, "Content-Type: text/html\r\n");
+ send(client, response_buf, strlen(response_buf), 0);
+ sprintf(response_buf, "Connection: keep-alive\r\n");
+ send(client, response_buf, strlen(response_buf), 0); 
+}
 
 
 int main(int argc, char *argv[])
