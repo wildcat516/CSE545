@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <signal.h>
 
-#define MAXMSG 1024
+#define MAXMSG 2048
 #define BUFMSG 2048
 
 #define SERVER_INFO "Server: jodevilhttpd/0.1.0 (macOS 10.12.3)\r\n"
@@ -24,6 +24,7 @@ void error_prefix(const char *);
 int make_socket(u_short *);
 int accept_request(int);
 void not_found(int);
+void signal_callback_handler(int);
 
 //global variable
 int server_socket;
@@ -62,9 +63,9 @@ int accept_request(int client)
     int nbytes = 0;
     char *command;
 
-    char *head;
-    char *tail;
-    char *tmp;
+    char *head = NULL;
+    char *tail = NULL;
+    char *tmp = NULL;
 
     char* response_buf;
 
@@ -77,8 +78,9 @@ int accept_request(int client)
     command = malloc(sizeof(char) * BUFMSG);
     response_buf = malloc(sizeof(char) * BUFMSG);
 
-    perror(".....");
+//    perror(".....");
     nbytes = read(client, buffer, MAXMSG);
+//perror("55555");
     if (nbytes < 0)
     {
         /* Read error. */
@@ -95,15 +97,24 @@ int accept_request(int client)
 
 //        printf("buffer[0] = %s", buffer);
 //        printf("%d", sizeof(buffer));
-        perror("wtf!!");
+//        perror("wtf!!");
         if (strncmp("GET /exec/", buffer, 10) == 0)
         {
 /*            perror("lalala");
             strcpy(buf, "HTTP/1.1 200 OK\r\n");
             send(client, buf, strlen(buf), 0);
             */
-            printf("%s", buffer+9);
+//            printf("%s", buffer+10);
+
             head = buffer + 10;
+
+	if (strncmp(" ", head, 1) == 0)
+	{
+//error_prefix("xxxxxx");
+		not_found(client);
+		return 0;
+	}
+
             tail = head;
 /*
             if (strncmp("/", head + 1, 1) == 0)
@@ -207,7 +218,7 @@ strcat(response_buf, "\r\n");
  // strcpy(response_buf, "\r\n");
  // send(client, response_buf, strlen(response_buf), 0);
 
-
+free(cmd_output);
     }
 
     pclose(f);
@@ -248,8 +259,10 @@ strcat(response_buf, "\r\n");
         {
             not_found(client);
         }
-        return 0;
     }
+	free(buffer);
+	free(command);
+	free(response_buf);
     return 0;
 }
 
@@ -261,7 +274,7 @@ void not_found(int client)
  send(client, response_buf, strlen(response_buf), 0);
  strcpy(response_buf, SERVER_INFO);
  send(client, response_buf, strlen(response_buf), 0);
- sprintf(response_buf, "Content-Length: 0\r\n");
+ sprintf(response_buf, "Content-Length: 1\r\n");
  send(client, response_buf, strlen(response_buf), 0);
  sprintf(response_buf, "Content-Type: text/html\r\n");
  send(client, response_buf, strlen(response_buf), 0);
@@ -271,19 +284,23 @@ void not_found(int client)
   strcpy(response_buf, "\r\n");  
   send(client, response_buf, strlen(response_buf), 0);
 
+ strcpy(response_buf, " \r\n");
+ send(client, response_buf, strlen(response_buf), 0);
+
 //  sprintf(response_buf, "%x", 0);
 //strcat(response_buf, "\r\n");  
 //  send(client, response_buf, strlen(response_buf), 0);
 //  strcpy(response_buf, "\r\n");  
 //  send(client, response_buf, strlen(response_buf), 0);
-
+free(response_buf);
+return;
 }
 
 
 // Define the function to be called when ctrl-c (SIGINT) signal is sent to process
 void signal_callback_handler(int signum)
 {
-   printf("Caught signal %d\n",signum);
+//   printf("Caught signal %d\n",signum);
    // Cleanup and close up stuff here
    close(server_socket);
    FD_CLR (server_socket, &active_fd_set); 
@@ -346,12 +363,11 @@ int main(int argc, char *argv[])
         {
             close(server_socket);
             FD_CLR (server_socket, &active_fd_set);
-            exit(1);
+	    return 0;
         }
     }
-    close(server_socket);
-    FD_CLR (server_socket, &active_fd_set);
-    exit(1);
+//    close(server_socket);
+//    FD_CLR (server_socket, &active_fd_set);
 
  return 0;
 }
